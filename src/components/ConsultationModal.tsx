@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Download, CheckCircle2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 interface ConsultationModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface ConsultationModalProps {
 
 interface FormData {
   name: string;
+  email: string;
   company: string;
   position: string;
   phone: string;
@@ -32,6 +34,7 @@ const ConsultationModal = ({ isOpen, onClose }: ConsultationModalProps) => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: "",
+    email: "",
     company: "",
     position: "",
     phone: "",
@@ -47,8 +50,11 @@ const ConsultationModal = ({ isOpen, onClose }: ConsultationModalProps) => {
     setFormData((prev) => ({ ...prev, acceptTerms: checked }));
   };
 
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const generatePDF = () => {
-    // Create a simple text-based PDF content
     const pdfContent = `
 %PDF-1.4
 1 0 obj
@@ -86,9 +92,7 @@ BT
 0 -20 Td
 (- Consultoria especializada) Tj
 0 -40 Td
-(Contacto: info@kuo.com) Tj
-0 -20 Td
-(Web: www.kuo.com) Tj
+(Contacto: samuelhoyosa@gmail.com) Tj
 ET
 endstream
 endobj
@@ -133,7 +137,7 @@ startxref
       return;
     }
 
-    if (!formData.name || !formData.company || !formData.position || !formData.phone) {
+    if (!formData.name || !formData.email || !formData.company || !formData.position || !formData.phone) {
       toast({
         title: "Error",
         description: "Por favor completa todos los campos",
@@ -142,34 +146,74 @@ startxref
       return;
     }
 
+    if (!validateEmail(formData.email)) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa un correo electrónico válido",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const { error } = await supabase.from("leads").insert([
+      {
+        name: formData.name,
+        email: formData.email,
+        company: formData.company,
+        position: formData.position,
+        phone: formData.phone,
+      },
+    ]);
 
-    // Generate and download PDF
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Hubo un problema al guardar tus datos. Intenta de nuevo.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    await fetch(
+      "https://miftmcvznnrrfdipsszl.supabase.co/functions/v1/send-email",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pZnRtY3Z6bm5ycmZkaXBzc3psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDQ3OTcsImV4cCI6MjA5Mjk4MDc5N30.ZiKi-5QUnc4ggJmiFGrRPK7qXa9Z-XYLQQDOAF1dO9M",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          company: formData.company,
+        }),
+      }
+    );
+
     generatePDF();
-
     setIsSubmitting(false);
     setIsSuccess(true);
 
     toast({
-      title: "¡Éxito!",
-      description: "Tu PDF se está descargando. Pronto recibirás un correo con más información.",
+      title: "¡Listo!",
+      description: "Tu PDF se está descargando. Revisa tu correo para confirmar tu consultoría.",
     });
 
-    // Reset after a delay
     setTimeout(() => {
       setIsSuccess(false);
       setFormData({
         name: "",
+        email: "",
         company: "",
         position: "",
         phone: "",
         acceptTerms: false,
       });
       onClose();
-    }, 3000);
+    }, 4000);
   };
 
   return (
@@ -177,11 +221,11 @@ startxref
       <DialogContent className="sm:max-w-md bg-card border-border">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl text-foreground">
-            {isSuccess ? "¡Gracias por tu interés!" : "Consultoría Gratuita"}
+            {isSuccess ? "¡Revisa tu correo!" : "Consultoría Gratuita"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {isSuccess
-              ? "Tu PDF se ha descargado. Revisa tu correo para más información."
+              ? "Tu PDF se está descargando. Te enviamos un correo para confirmar tu consultoría gratuita."
               : "Completa tus datos y recibe información detallada sobre cómo podemos ayudar a tu empresa."}
           </DialogDescription>
         </DialogHeader>
@@ -191,8 +235,8 @@ startxref
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center animate-scale-in">
               <CheckCircle2 className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-center text-muted-foreground">
-              Nuestro equipo se pondrá en contacto contigo pronto.
+            <p className="text-center text-muted-foreground text-sm">
+              Haz clic en el enlace que te enviamos a <strong className="text-foreground">{formData.email}</strong> para agendar tu consultoría.
             </p>
           </div>
         ) : (
@@ -204,6 +248,19 @@ startxref
                 name="name"
                 placeholder="Tu nombre"
                 value={formData.name}
+                onChange={handleInputChange}
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-foreground">Correo electrónico</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="tu@empresa.com"
+                value={formData.email}
                 onChange={handleInputChange}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
@@ -239,7 +296,7 @@ startxref
                 id="phone"
                 name="phone"
                 type="tel"
-                placeholder="+1 234 567 8900"
+                placeholder="+57 300 000 0000"
                 value={formData.phone}
                 onChange={handleInputChange}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
