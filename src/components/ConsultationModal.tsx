@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Download, CheckCircle2 } from "lucide-react";
+import { Mail, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface ConsultationModalProps {
@@ -27,6 +27,10 @@ interface FormData {
   phone: string;
   acceptTerms: boolean;
 }
+
+const generateToken = () => {
+  return crypto.randomUUID();
+};
 
 const ConsultationModal = ({ isOpen, onClose }: ConsultationModalProps) => {
   const { toast } = useToast();
@@ -52,77 +56,6 @@ const ConsultationModal = ({ isOpen, onClose }: ConsultationModalProps) => {
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const generatePDF = () => {
-    const pdfContent = `
-%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length 500 >>
-stream
-BT
-/F1 24 Tf
-50 700 Td
-(KUO - Optimizacion de Inventario) Tj
-0 -40 Td
-/F1 14 Tf
-(Gracias por tu interes en nuestros servicios, ${formData.name}!) Tj
-0 -30 Td
-(Empresa: ${formData.company}) Tj
-0 -25 Td
-(Cargo: ${formData.position}) Tj
-0 -40 Td
-/F1 12 Tf
-(Nuestros Servicios:) Tj
-0 -25 Td
-(- Reduccion de inventario hasta 30%) Tj
-0 -20 Td
-(- Analisis predictivo con IA) Tj
-0 -20 Td
-(- Optimizacion de cadena de suministro) Tj
-0 -20 Td
-(- Consultoria especializada) Tj
-0 -40 Td
-(Contacto: samuelhoyosa@gmail.com) Tj
-ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
-0000000000 65535 f
-0000000009 00000 n
-0000000058 00000 n
-0000000115 00000 n
-0000000266 00000 n
-0000000817 00000 n
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-896
-%%EOF
-    `;
-
-    const blob = new Blob([pdfContent], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "KUO-Informacion-Servicios.pdf";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,6 +90,8 @@ startxref
 
     setIsSubmitting(true);
 
+    const token = generateToken();
+
     const { error } = await supabase.from("leads").insert([
       {
         name: formData.name,
@@ -164,6 +99,8 @@ startxref
         company: formData.company,
         position: formData.position,
         phone: formData.phone,
+        token: token,
+        confirmado: false,
       },
     ]);
 
@@ -177,47 +114,46 @@ startxref
       return;
     }
 
-    await fetch(
-      "https://miftmcvznnrrfdipsszl.supabase.co/functions/v1/send-email",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pZnRtY3Z6bm5ycmZkaXBzc3psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDQ3OTcsImV4cCI6MjA5Mjk4MDc5N30.ZiKi-5QUnc4ggJmiFGrRPK7qXa9Z-XYLQQDOAF1dO9M",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          company: formData.company,
-        }),
-      }
-    );
-
-    generatePDF();
-    setIsSubmitting(false);
-    setIsSuccess(true);
-
-    toast({
-      title: "¡Listo!",
-      description: "Tu PDF se está descargando. Revisa tu correo para confirmar tu consultoría.",
+    const emailRes = await fetch("http://localhost:3001/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.name,
+        email: formData.email,
+        company: formData.company,
+        token: token,
+      }),
     });
 
-    setTimeout(() => {
-      setIsSuccess(false);
-      setFormData({
-        name: "",
-        email: "",
-        company: "",
-        position: "",
-        phone: "",
-        acceptTerms: false,
+    if (!emailRes.ok) {
+      toast({
+        title: "Error",
+        description: "Hubo un problema enviando el correo. Intenta de nuevo.",
+        variant: "destructive",
       });
-      onClose();
-    }, 4000);
+      setIsSubmitting(false);
+      return;
+    }
+
+    setIsSubmitting(false);
+    setIsSuccess(true);
+  };
+
+  const handleClose = () => {
+    setIsSuccess(false);
+    setFormData({
+      name: "",
+      email: "",
+      company: "",
+      position: "",
+      phone: "",
+      acceptTerms: false,
+    });
+    onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md bg-card border-border">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl text-foreground">
@@ -225,7 +161,7 @@ startxref
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {isSuccess
-              ? "Tu PDF se está descargando. Te enviamos un correo para confirmar tu consultoría gratuita."
+              ? "Te enviamos un correo para confirmar tu solicitud."
               : "Completa tus datos y recibe información detallada sobre cómo podemos ayudar a tu empresa."}
           </DialogDescription>
         </DialogHeader>
@@ -235,9 +171,25 @@ startxref
             <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center animate-scale-in">
               <CheckCircle2 className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-center text-muted-foreground text-sm">
-              Haz clic en el enlace que te enviamos a <strong className="text-foreground">{formData.email}</strong> para agendar tu consultoría.
-            </p>
+            <div className="text-center space-y-2">
+              <p className="text-foreground font-medium">
+                Enviamos un correo a
+              </p>
+              <p className="text-primary font-bold text-lg">
+                {formData.email}
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Haz clic en el enlace del correo para confirmar tu cuenta, descargar tu PDF y agendar tu consultoría gratuita.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="mt-4 w-full"
+              onClick={handleClose}
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Entendido
+            </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
@@ -329,8 +281,8 @@ startxref
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Solicitar y Descargar PDF
+                  <Mail className="w-4 h-4" />
+                  Solicitar consultoría gratuita
                 </span>
               )}
             </Button>
