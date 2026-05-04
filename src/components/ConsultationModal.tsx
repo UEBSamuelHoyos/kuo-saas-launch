@@ -114,7 +114,7 @@ const ConsultationModal = ({ isOpen, onClose }: ConsultationModalProps) => {
       return;
     }
 
-    const emailRes = await fetch("http://localhost:3001/send-email", {
+    const emailRes = await fetch("https://kuo-saas-launch-production.up.railway.app/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
