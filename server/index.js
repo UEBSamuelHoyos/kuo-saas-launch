@@ -38,7 +38,7 @@ app.post("/send-email", async (req, res) => {
               Haz clic en el botón de abajo para confirmar tu correo, descargar tu PDF y agendar tu consultoría gratuita.
             </p>
           </div>
-          <a href="http://localhost:8080/confirmar?token=${token}"
+          <a href="https://kuo-saas-launch.vercel.app/confirmar?token=${token}"
              style="display:inline-block;background:#e91e8c;color:white;padding:16px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;margin:16px 0;">
             Confirmar correo y descargar PDF →
           </a>

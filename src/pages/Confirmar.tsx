@@ -39,7 +39,7 @@ const Confirmar = () => {
 
       downloadPDF();
 
-      await fetch("http://localhost:3001/send-calendly", {
+      await fetch("https://kuo-saas-launch-production.up.railway.app/send-calendly", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -55,7 +55,7 @@ const Confirmar = () => {
   }, []);
 
   const downloadPDF = () => {
-    window.location.href = "http://localhost:3001/download-pdf";
+    window.location.href = "https://kuo-saas-launch-production.up.railway.app/download-pdf";
   };
 
   return (
