@@ -1,5 +1,4 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
 const cors = require("cors");
 const path = require("path");
 
@@ -7,13 +6,27 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "samuelhoyosa@gmail.com",
-    pass: "pyov oyca ozgu qvrd",
-  },
-});
+const RESEND_API_KEY = "re_VKnQ8XEW_F9Eo1P8CtFxX7rDNyCdSnkha";
+
+const sendEmail = async ({ to, subject, html }) => {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: "KUO <onboarding@resend.dev>",
+      to,
+      subject,
+      html,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(JSON.stringify(data));
+  return data;
+};
 
 app.get("/download-pdf", (req, res) => {
   const filePath = path.join(__dirname, "pdfs", "KUO-Guia.pdf");
@@ -24,8 +37,7 @@ app.post("/send-email", async (req, res) => {
   const { name, email, company, token } = req.body;
 
   try {
-    await transporter.sendMail({
-      from: '"KUO" <samuelhoyosa@gmail.com>',
+    await sendEmail({
       to: email,
       subject: "Confirma tu correo para descargar tu PDF — KUO",
       html: `
@@ -35,7 +47,7 @@ app.post("/send-email", async (req, res) => {
           <div style="background:#1a1a2e;border-radius:8px;padding:24px;margin:24px 0;">
             <p style="margin:0;font-size:15px;line-height:1.7;">
               Recibimos tu solicitud de consultoría para <strong>${company}</strong>.<br/><br/>
-              Haz clic en el botón de abajo para confirmar tu correo, descargar tu PDF y agendar tu consultoría gratuita.
+              Haz clic en el botón de abajo para confirmar tu correo y descargar tu PDF.
             </p>
           </div>
           <a href="https://kuo-saas-launch.vercel.app/confirmar?token=${token}"
@@ -61,8 +73,7 @@ app.post("/send-calendly", async (req, res) => {
   const { name, email } = req.body;
 
   try {
-    await transporter.sendMail({
-      from: '"KUO" <samuelhoyosa@gmail.com>',
+    await sendEmail({
       to: email,
       subject: "Agenda tu consultoría gratuita — KUO",
       html: `
